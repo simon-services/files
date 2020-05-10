@@ -17,22 +17,50 @@ package cmd
 
 import (
 	"fmt"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"simon.services/files"
 )
 
 var (
 	cfgFile string
+	address string
+	client  string
+	secret  string
+	webroot string
+	err     error
 )
 
 // startCmd represents the start command
 var startCmd = &cobra.Command{
 	Use:   "start",
-	Short: "A brief description of your command",
+	Short: "starts the files service",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("start called")
-		return nil
+		if len(cfgFile) > 0 {
+			address = viper.GetString("address")
+			client = viper.GetString("client")
+			secret = viper.GetString("secret")
+			webroot = viper.GetString("webroot")
+		} else {
+			address, err = cmd.Flags().GetString("address")
+			if err != nil {
+				return err
+			}
+			client, err = cmd.Flags().GetString("client")
+			if err != nil {
+				return err
+			}
+			secret, err = cmd.Flags().GetString("secret")
+			if err != nil {
+				return err
+			}
+			webroot, err = cmd.Flags().GetString("webroot")
+			if err != nil {
+				return err
+			}
+		}
+		f := files.New()
+		return f.Start(address, client, secret, webroot)
 	},
 }
 
@@ -40,6 +68,10 @@ func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.AddCommand(startCmd)
 	startCmd.Flags().StringVar(&cfgFile, "config", "", "config file (default is /opt/simon.services/files/conf/files.json)")
+	startCmd.Flags().StringVar(&address, "address", "0.0.0.0:7878", "address to start the service at)")
+	startCmd.Flags().StringVar(&client, "client", "files", "client ID")
+	startCmd.Flags().StringVar(&secret, "secret", "secret", "client secret")
+	startCmd.Flags().StringVar(&webroot, "webroot", "./webroot", "location of the frontend static files")
 }
 
 func initConfig() {
