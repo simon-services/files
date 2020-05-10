@@ -8,9 +8,9 @@ test:
 	go test -v -run=Test_Unit 2>&1 | ./go-junit-report > report.xml
 
 update:
-	GOPRIVATE="evalgo.org/eve,evalgo.org/evapp,evalgo.org/plugins" go get -u -v
+	GOPRIVATE="evalgo.org/evmsg,evalgo.org/eve" go get -u -v
 
-build:
+build: update
 	GOOS=linux GOARCH=amd64 go build -o files.linux.amd64 cmd/service/main.go
 	GOOS=darwin GOARCH=amd64 go build -o files.darwin.amd64 cmd/service/main.go
 	GOOS=windows GOARCH=amd64 go build -o files.windows.amd64 cmd/service/main.go
