@@ -3,11 +3,9 @@ module simon.services/files
 go 1.14
 
 require (
-	evalgo.org/evmsg v0.0.0-20200510004245-38341243af9f
-	github.com/jstemmer/go-junit-report v0.9.1 // indirect
+	evalgo.org/evmsg v0.0.0-20200510185134-40ea7472ca93
 	github.com/labstack/echo/v4 v4.1.16
 	github.com/labstack/gommon v0.3.0
-	github.com/mitchellh/go-homedir v1.1.0
 	github.com/neko-neko/echo-logrus/v2 v2.0.1
 	github.com/sirupsen/logrus v1.5.0
 	github.com/spf13/cobra v1.0.0
