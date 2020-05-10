@@ -1,0 +1,9 @@
+*~
+.DS_Store
+snap/.snapcraft
+evmsg.*.amd64
+containers
+tmp/
+webroot
+go-junit-report
+report.xml
