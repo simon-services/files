@@ -12,6 +12,7 @@ import (
 	echo "github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	echoLog "github.com/labstack/gommon/log"
+	"github.com/minio/minio-go/v6"
 	"github.com/neko-neko/echo-logrus/v2/log"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
@@ -84,6 +85,24 @@ func (f *Files) Start(address, client, secret, webroot string) error {
 						continue WEBSOCKET
 					}
 					switch msg.Scope {
+					case "Object":
+						msg.State = "Response"
+						switch msg.Command {
+						case "getList":
+							err = evmsg.CheckRequiredKeys(&msg, []string{"bucket", "prefix"})
+							if err != nil {
+								c.Logger().Error(err)
+								msg.Debug.Error = err.Error()
+							} else {
+								nMsg, err := f.WSStorage.ListObjects(minio.BucketInfo{Name: msg.Value("bucket").(string)}, msg.Value("prefix").(string))
+								if err != nil {
+									c.Logger().Error(err)
+								}
+								msg = *nMsg
+							}
+
+						}
+
 					case "Bucket":
 						msg.State = "Response"
 						switch msg.Command {

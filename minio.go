@@ -43,10 +43,13 @@ func (m *Minio) Connect(apiURL, accessKey, accessSecret string) error {
 }
 
 func (m *Minio) ListBuckets() (*evmsg.Message, error) {
+	msg := evmsg.NewMessage()
+	msg.State = "Response"
 	ctx, _ := context.WithTimeout(context.Background(), time.Duration(MinioConnectionSecondsTimeout)*time.Second)
 	buckets, err := m.Client.ListBucketsWithContext(ctx)
 	if err != nil {
-		return nil, err
+		msg.Debug.Error = err.Error()
+		return msg, err
 	}
 	bMap := []interface{}{}
 	for _, bucket := range buckets {
@@ -56,9 +59,31 @@ func (m *Minio) ListBuckets() (*evmsg.Message, error) {
 		}
 		bMap = append(bMap, bucketInfo)
 	}
-	msg := evmsg.NewMessage()
-	msg.State = "Response"
 	msg.Data = bMap
 	return msg, nil
 
+}
+
+func (m *Minio) ListObjects(bucket minio.BucketInfo, prefix string) (*evmsg.Message, error) {
+	msg := evmsg.NewMessage()
+	msg.State = "Response"
+	doneCh := make(chan struct{})
+	defer close(doneCh)
+	objects := m.Client.ListObjects(bucket.Name, prefix, true, doneCh)
+	msgData := []interface{}{}
+	for obj := range objects {
+		if obj.Err != nil {
+			msg.Debug.Error = obj.Err.Error()
+			return msg, obj.Err
+		}
+		mObj := map[string]interface{}{
+			"key":      obj.Key,
+			"size":     obj.Size,
+			"etag":     obj.ETag,
+			"modified": obj.LastModified,
+		}
+		msgData = append(msgData, mObj)
+	}
+	msg.Data = msgData
+	return msg, nil
 }
