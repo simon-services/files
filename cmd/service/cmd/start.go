@@ -29,6 +29,9 @@ var (
 	secret  string
 	webroot string
 	err     error
+	sURL    string
+	sKey    string
+	sSecret string
 )
 
 // startCmd represents the start command
@@ -41,6 +44,9 @@ var startCmd = &cobra.Command{
 			client = viper.GetString("client")
 			secret = viper.GetString("secret")
 			webroot = viper.GetString("webroot")
+			sURL = viper.GetString("s_url")
+			sKey = viper.GetString("s_key")
+			sSecret = viper.GetString("s_secret")
 		} else {
 			address, err = cmd.Flags().GetString("address")
 			if err != nil {
@@ -58,8 +64,24 @@ var startCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
+			sURL, err = cmd.Flags().GetString("s_url")
+			if err != nil {
+				return err
+			}
+			sKey, err = cmd.Flags().GetString("s_key")
+			if err != nil {
+				return err
+			}
+			sSecret, err = cmd.Flags().GetString("s_secret")
+			if err != nil {
+				return err
+			}
 		}
 		f := files.New()
+		err = f.ConnectStorage("minio", map[string]string{"url": sURL, "key": sKey, "secret": sSecret})
+		if err != nil {
+			return err
+		}
 		return f.Start(address, client, secret, webroot)
 	},
 }
@@ -72,6 +94,9 @@ func init() {
 	startCmd.Flags().StringVar(&client, "client", "files", "client ID")
 	startCmd.Flags().StringVar(&secret, "secret", "secret", "client secret")
 	startCmd.Flags().StringVar(&webroot, "webroot", "./webroot", "location of the frontend static files")
+	startCmd.Flags().StringVar(&sURL, "s_url", "http://127.0.0.1:9000", "storage url")
+	startCmd.Flags().StringVar(&sKey, "s_key", "minioadmin", "storage key")
+	startCmd.Flags().StringVar(&sSecret, "s_secret", "minioadmin", "storage secret")
 }
 
 func initConfig() {

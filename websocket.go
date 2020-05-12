@@ -1,6 +1,13 @@
 package files
 
 import (
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"time"
+
 	"evalgo.org/evmsg"
 	echo "github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -8,10 +15,6 @@ import (
 	"github.com/neko-neko/echo-logrus/v2/log"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
-	"io"
-	"net/http"
-	"os"
-	"time"
 )
 
 type Files struct {
@@ -19,10 +22,26 @@ type Files struct {
 	WSClient  string
 	WSSecret  string
 	WSWebroot string
+	WSStorage Storage
 }
 
 func New() *Files {
 	return &Files{}
+}
+
+func (f *Files) ConnectStorage(sType string, connInfo map[string]string) error {
+	switch sType {
+	case "minio":
+		m := NewMinio()
+		err := m.Connect(connInfo["url"], connInfo["key"], connInfo["secret"])
+		if err != nil {
+			return err
+		}
+		fmt.Println(err, m)
+		f.WSStorage = m
+		return nil
+	}
+	return errors.New("the given storage type <" + sType + "> is not supported!")
 }
 
 func (f *Files) Start(address, client, secret, webroot string) error {
@@ -65,11 +84,17 @@ func (f *Files) Start(address, client, secret, webroot string) error {
 						continue WEBSOCKET
 					}
 					switch msg.Scope {
-					default:
+					case "Bucket":
 						msg.State = "Response"
 						switch msg.Command {
-						default:
-							msg.Data = []interface{}{map[string]interface{}{"id": "one"}}
+						case "getList":
+							nMsg, err := f.WSStorage.ListBuckets()
+							if err != nil {
+								c.Logger().Error(err)
+								msg.Debug.Error = err.Error()
+							} else {
+								msg = *nMsg
+							}
 						}
 					}
 					// send msg response
