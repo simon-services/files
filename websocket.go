@@ -88,6 +88,18 @@ func (f *Files) Start(address, client, secret, webroot string) error {
 					case "Object":
 						msg.State = "Response"
 						switch msg.Command {
+						case "get":
+							err = evmsg.CheckRequiredKeys(&msg, []string{"bucket", "file"})
+							if err != nil {
+								c.Logger().Error(err)
+								msg.Debug.Error = err.Error()
+							} else {
+								nMsg, err := f.WSStorage.GetObject(msg.Value("bucket").(string), msg.Value("file").(string))
+								if err != nil {
+									c.Logger().Error(err)
+								}
+								msg = *nMsg
+							}
 						case "getList":
 							err = evmsg.CheckRequiredKeys(&msg, []string{"bucket", "prefix"})
 							if err != nil {
