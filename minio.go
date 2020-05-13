@@ -2,17 +2,20 @@ package files
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/base64"
 	"evalgo.org/evmsg"
 	"github.com/minio/minio-go/v6"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 )
 
 var MinioConnectionSecondsTimeout int64 = 5
 var MinioDownloadSecondsTimeout int64 = 100
 var MinioFilesCacheDir string = "/tmp/files/minio/cache"
-var MinioDownloadsFilePath string = "/v0.0.1/files"
+var MinioDownloadsFilePath string = "/v0.0.1/files/buckets/:bucket/objects/:object"
 
 type Minio struct {
 	ApiURL       string
@@ -99,7 +102,10 @@ func (m *Minio) ListObjects(bucket minio.BucketInfo, prefix string) (*evmsg.Mess
 func (m *Minio) GetObject(bucket, file string) (*evmsg.Message, error) {
 	msg := evmsg.NewMessage()
 	msg.State = "Response"
-	cacheFilePath := MinioFilesCacheDir + string(os.PathSeparator) + file
+	hasher := sha1.New()
+	hasher.Write([]byte(file))
+	fileNameSha := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+	cacheFilePath := MinioFilesCacheDir + string(os.PathSeparator) + fileNameSha
 	_, err := os.Stat(cacheFilePath)
 	if os.IsNotExist(err) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(MinioDownloadSecondsTimeout)*time.Second)
@@ -111,9 +117,11 @@ func (m *Minio) GetObject(bucket, file string) (*evmsg.Message, error) {
 			return msg, err
 		}
 	}
+	downloadPath := strings.Replace(MinioDownloadsFilePath, ":bucket", bucket, 1)
+	downloadPath = strings.Replace(downloadPath, ":object", fileNameSha, 1)
 	msg.Data = []interface{}{
 		map[string]interface{}{
-			"path": MinioDownloadsFilePath + "/" + file,
+			"path": downloadPath,
 		},
 	}
 	return msg, nil

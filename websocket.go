@@ -16,6 +16,8 @@ import (
 	"github.com/neko-neko/echo-logrus/v2/log"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
+	"io/ioutil"
+	"path/filepath"
 )
 
 type Files struct {
@@ -60,6 +62,50 @@ func (f *Files) Start(address, client, secret, webroot string) error {
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Static("/", webroot)
+	e.GET("/v0.0.1/files/buckets/:bucket/objects/:object", func(c echo.Context) error {
+		c.Response().WriteHeader(http.StatusOK)
+		msg, err := f.WSStorage.GetObject(c.Param("bucket"), c.Param("object"))
+		if err != nil {
+			return err
+		}
+		c.Logger().Info(msg.Data.([]interface{})[0].(map[string]interface{})["path"].(string))
+		tmpFile := filepath.Base(msg.Data.([]interface{})[0].(map[string]interface{})["path"].(string))
+		cacheFilePath := MinioFilesCacheDir + string(os.PathSeparator) + tmpFile
+		resp, err := ioutil.ReadFile(cacheFilePath)
+		if err != nil {
+			return err
+		}
+		c.Response().Write(resp)
+		return nil
+	})
+	/*
+		e.GET("/v0.0.1/evminio/thumbnails/:key", func(c echo.Context) error {
+			client, buckets, err := connect()
+			if err != nil {
+				return err
+			}
+			c.Response().WriteHeader(http.StatusOK)
+			object, err := client.StatObject(buckets[0].Name, c.Param("key"), minio.StatObjectOptions{})
+			if err != nil {
+				return err
+			}
+			resp, err := getReader(client, buckets[0], object)
+			if err != nil {
+				return err
+			}
+			image, _, err := image.Decode(resp)
+			newImage := resize.Resize(125, 0, image, resize.Lanczos3)
+			switch filepath.Ext(c.Param("key")) {
+			case ".jpg", ".jpeg":
+				return jpeg.Encode(c.Response(), newImage, nil)
+			case ".png":
+				return png.Encode(c.Response(), newImage)
+			default:
+				c.Response().WriteHeader(http.StatusInternalServerError)
+				c.Response().Write([]byte("given image extension <" + filepath.Ext(c.Param("key")) + "> not supported yet!"))
+			}
+			return nil
+		})*/
 	e.GET("/v0.0.1/ws", func(c echo.Context) error {
 		s := websocket.Server{
 			Handler: websocket.Handler(func(ws *websocket.Conn) {
