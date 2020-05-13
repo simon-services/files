@@ -78,6 +78,18 @@ func (f *Files) Start(address, client, secret, webroot string) error {
 		c.Response().Write(resp)
 		return nil
 	})
+	e.POST("/v0.0.1/files/buckets/:bucket/objects", func(c echo.Context) error {
+		file, err := c.FormFile("file")
+		if err != nil {
+			return err
+		}
+		err = f.WSStorage.PutObject(c.FormValue("bucket"), file)
+		if err != nil {
+			return err
+		}
+		c.Response().Write([]byte("OK"))
+		return nil
+	})
 	e.GET("/v0.0.1/files/buckets/:bucket/thumbnails/:object", func(c echo.Context) error {
 		tBytes, err := f.WSStorage.GetThumbnail(c.Param("bucket"), c.Param("object"))
 		if err != nil {

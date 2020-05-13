@@ -11,6 +11,7 @@ import (
 	"image"
 	"image/jpeg"
 	"image/png"
+	"mime/multipart"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -22,6 +23,7 @@ var MinioConnectionSecondsTimeout int64 = 5
 var MinioDownloadSecondsTimeout int64 = 100
 var MinioFilesCacheDir string = "/tmp/files/minio/cache"
 var MinioDownloadsFilePath string = "/v0.0.1/files/buckets/:bucket/objects/:object"
+var MinioUploadSecondsTimeout int64 = 100
 
 type Minio struct {
 	ApiURL       string
@@ -160,4 +162,21 @@ func (m *Minio) GetThumbnail(bucket, file string) ([]byte, error) {
 	}
 	return imgBuffer.Bytes(), nil
 
+}
+
+func (m *Minio) PutObject(bucket string, file *multipart.FileHeader) error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(MinioUploadSecondsTimeout)*time.Second)
+	defer cancel()
+	src, err := file.Open()
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+	_, err = m.Client.PutObjectWithContext(ctx, bucket, file.Filename, src, file.Size, minio.PutObjectOptions{
+		ContentType: "application/octet-stream",
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
