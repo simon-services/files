@@ -78,34 +78,14 @@ func (f *Files) Start(address, client, secret, webroot string) error {
 		c.Response().Write(resp)
 		return nil
 	})
-	/*
-		e.GET("/v0.0.1/evminio/thumbnails/:key", func(c echo.Context) error {
-			client, buckets, err := connect()
-			if err != nil {
-				return err
-			}
-			c.Response().WriteHeader(http.StatusOK)
-			object, err := client.StatObject(buckets[0].Name, c.Param("key"), minio.StatObjectOptions{})
-			if err != nil {
-				return err
-			}
-			resp, err := getReader(client, buckets[0], object)
-			if err != nil {
-				return err
-			}
-			image, _, err := image.Decode(resp)
-			newImage := resize.Resize(125, 0, image, resize.Lanczos3)
-			switch filepath.Ext(c.Param("key")) {
-			case ".jpg", ".jpeg":
-				return jpeg.Encode(c.Response(), newImage, nil)
-			case ".png":
-				return png.Encode(c.Response(), newImage)
-			default:
-				c.Response().WriteHeader(http.StatusInternalServerError)
-				c.Response().Write([]byte("given image extension <" + filepath.Ext(c.Param("key")) + "> not supported yet!"))
-			}
-			return nil
-		})*/
+	e.GET("/v0.0.1/files/buckets/:bucket/thumbnails/:object", func(c echo.Context) error {
+		tBytes, err := f.WSStorage.GetThumbnail(c.Param("bucket"), c.Param("object"))
+		if err != nil {
+			return err
+		}
+		c.Response().Write(tBytes)
+		return nil
+	})
 	e.GET("/v0.0.1/ws", func(c echo.Context) error {
 		s := websocket.Server{
 			Handler: websocket.Handler(func(ws *websocket.Conn) {

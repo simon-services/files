@@ -9,4 +9,5 @@ type Storage interface {
 	ListBuckets() (*evmsg.Message, error)
 	ListObjects(bucket minio.BucketInfo, prefix string) (*evmsg.Message, error)
 	GetObject(bucket, file string) (*evmsg.Message, error)
+	GetThumbnail(bucket, file string) ([]byte, error)
 }

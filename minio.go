@@ -1,13 +1,19 @@
 package files
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha1"
 	"encoding/base64"
 	"evalgo.org/evmsg"
 	"github.com/minio/minio-go/v6"
+	"github.com/nfnt/resize"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -125,4 +131,33 @@ func (m *Minio) GetObject(bucket, file string) (*evmsg.Message, error) {
 		},
 	}
 	return msg, nil
+}
+
+func (m *Minio) GetThumbnail(bucket, file string) ([]byte, error) {
+	msg, err := m.GetObject(bucket, file)
+	if err != nil {
+		return nil, err
+	}
+	imgPath := msg.Data.([]interface{})[0].(map[string]interface{})["path"].(string)
+	resp, err := os.Open(imgPath)
+	if err != nil {
+		return nil, err
+	}
+	image, _, err := image.Decode(resp)
+	newImage := resize.Resize(125, 0, image, resize.Lanczos3)
+	imgBuffer := bytes.NewBuffer(nil)
+	switch strings.ToLower(filepath.Ext(file)) {
+	case ".jpg", ".jpeg":
+		err := jpeg.Encode(imgBuffer, newImage, nil)
+		if err != nil {
+			return nil, err
+		}
+	case ".png":
+		err := png.Encode(imgBuffer, newImage)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return imgBuffer.Bytes(), nil
+
 }
