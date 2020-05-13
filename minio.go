@@ -180,3 +180,16 @@ func (m *Minio) PutObject(bucket string, file *multipart.FileHeader) error {
 	}
 	return nil
 }
+
+func (m *Minio) CreateBucket(bucket string) (*evmsg.Message, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(MinioConnectionSecondsTimeout)*time.Second)
+	defer cancel()
+	msg := evmsg.NewMessage()
+	msg.State = "Response"
+	err := m.Client.MakeBucketWithContext(ctx, bucket, "")
+	if err != nil {
+		msg.Debug.Error = err.Error()
+		return msg, err
+	}
+	return msg, nil
+}

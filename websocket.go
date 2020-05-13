@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	//"crypto/subtle"
 	"evalgo.org/evmsg"
 	echo "github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -61,11 +62,21 @@ func (f *Files) Start(address, client, secret, webroot string) error {
 	e.Logger = log.Logger()
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
+	/*e.Use(middleware.BasicAuth(
+		func(username, password string, c echo.Context) (bool, error) {
+			if subtle.ConstantTimeCompare([]byte(username), []byte("files")) == 1 &&
+				subtle.ConstantTimeCompare([]byte(password), []byte("secret")) == 1 {
+				return true, nil
+			}
+			return false, nil
+		}),
+	)*/
 	e.Static("/", webroot)
 	e.GET("/v0.0.1/files/buckets/:bucket/objects/:object", func(c echo.Context) error {
-		c.Response().WriteHeader(http.StatusOK)
 		msg, err := f.WSStorage.GetObject(c.Param("bucket"), c.Param("object"))
 		if err != nil {
+			c.Response().WriteHeader(http.StatusInternalServerError)
+			c.Response().Write([]byte(err.Error()))
 			return err
 		}
 		c.Logger().Info(msg.Data.([]interface{})[0].(map[string]interface{})["path"].(string))
@@ -73,8 +84,11 @@ func (f *Files) Start(address, client, secret, webroot string) error {
 		cacheFilePath := MinioFilesCacheDir + string(os.PathSeparator) + tmpFile
 		resp, err := ioutil.ReadFile(cacheFilePath)
 		if err != nil {
+			c.Response().WriteHeader(http.StatusInternalServerError)
+			c.Response().Write([]byte(err.Error()))
 			return err
 		}
+		c.Response().WriteHeader(http.StatusOK)
 		c.Response().Write(resp)
 		return nil
 	})
@@ -83,7 +97,7 @@ func (f *Files) Start(address, client, secret, webroot string) error {
 		if err != nil {
 			return err
 		}
-		err = f.WSStorage.PutObject(c.FormValue("bucket"), file)
+		err = f.WSStorage.PutObject(c.Param("bucket"), file)
 		if err != nil {
 			return err
 		}
@@ -156,6 +170,18 @@ func (f *Files) Start(address, client, secret, webroot string) error {
 					case "Bucket":
 						msg.State = "Response"
 						switch msg.Command {
+						case "create":
+							err = evmsg.CheckRequiredKeys(&msg, []string{"bucket"})
+							if err != nil {
+								c.Logger().Error(err)
+								msg.Debug.Error = err.Error()
+							} else {
+								nMsg, err := f.WSStorage.CreateBucket(msg.Value("bucket").(string))
+								if err != nil {
+									c.Logger().Error(err)
+								}
+								msg = *nMsg
+							}
 						case "getList":
 							nMsg, err := f.WSStorage.ListBuckets()
 							if err != nil {
