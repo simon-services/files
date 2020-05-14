@@ -1,14 +1,19 @@
 package files
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	//"crypto/subtle"
+	"io/ioutil"
+	"path/filepath"
+
 	"evalgo.org/evmsg"
 	echo "github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -17,8 +22,6 @@ import (
 	"github.com/neko-neko/echo-logrus/v2/log"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
-	"io/ioutil"
-	"path/filepath"
 )
 
 type Files struct {
@@ -97,11 +100,39 @@ func (f *Files) Start(address, client, secret, webroot string) error {
 		if err != nil {
 			return err
 		}
+		switch strings.ToLower(filepath.Ext(file.Filename)) {
+		case ".jpg", ".jpeg", ".png":
+			// found the right extensions that are supported
+		default:
+			// everything else is not supported
+			err = errors.New("the given extension <" + strings.ToLower(filepath.Ext(file.Filename)) + "> is not supported!")
+			c.Response().WriteHeader(http.StatusInternalServerError)
+			c.Response().Header().Set("Content-Type", "application/json")
+			msg := evmsg.NewMessage()
+			msg.State = "Response"
+			msg.Debug.Error = err.Error()
+			mB, _ := json.Marshal(msg)
+			c.Response().Write(mB)
+			if err != nil {
+				return err
+			}
+			return err
+		}
 		err = f.WSStorage.PutObject(c.Param("bucket"), file)
 		if err != nil {
 			return err
 		}
-		c.Response().Write([]byte("OK"))
+		msg, err := f.WSStorage.GetObject(c.Param("bucket"), file.Filename)
+		if err != nil {
+			return err
+		}
+		mB, err := json.Marshal(msg)
+		if err != nil {
+			return err
+		}
+		c.Response().WriteHeader(http.StatusOK)
+		c.Response().Header().Set("Content-Type", "application/json")
+		c.Response().Write(mB)
 		return nil
 	})
 	e.GET("/v0.0.1/files/buckets/:bucket/thumbnails/:object", func(c echo.Context) error {

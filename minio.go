@@ -5,9 +5,6 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/base64"
-	"evalgo.org/evmsg"
-	"github.com/minio/minio-go/v6"
-	"github.com/nfnt/resize"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -17,6 +14,10 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"evalgo.org/evmsg"
+	"github.com/minio/minio-go/v6"
+	"github.com/nfnt/resize"
 )
 
 var MinioConnectionSecondsTimeout int64 = 5
@@ -100,6 +101,7 @@ func (m *Minio) ListObjects(bucket minio.BucketInfo, prefix string) (*evmsg.Mess
 			"size":     obj.Size,
 			"etag":     obj.ETag,
 			"modified": obj.LastModified,
+			"bucket":   bucket.Name,
 		}
 		msgData = append(msgData, mObj)
 	}
@@ -146,6 +148,7 @@ func (m *Minio) GetThumbnail(bucket, file string) ([]byte, error) {
 	}
 	image, _, err := image.Decode(resp)
 	newImage := resize.Resize(125, 0, image, resize.Lanczos3)
+	//newImage := resize.Thumbnail(125, 0, image, resize.Lanczos3)
 	imgBuffer := bytes.NewBuffer(nil)
 	switch strings.ToLower(filepath.Ext(file)) {
 	case ".jpg", ".jpeg":
