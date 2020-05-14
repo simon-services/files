@@ -118,7 +118,6 @@ func (m *Minio) GetObject(bucket, file string) (*evmsg.Message, error) {
 	if os.IsNotExist(err) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(MinioDownloadSecondsTimeout)*time.Second)
 		defer cancel()
-		cacheFilePath := MinioFilesCacheDir + string(os.PathSeparator) + file
 		err := m.Client.FGetObjectWithContext(ctx, bucket, file, cacheFilePath, minio.GetObjectOptions{})
 		if err != nil {
 			msg.Debug.Error = err.Error()
@@ -129,7 +128,8 @@ func (m *Minio) GetObject(bucket, file string) (*evmsg.Message, error) {
 	downloadPath = strings.Replace(downloadPath, ":object", fileNameSha, 1)
 	msg.Data = []interface{}{
 		map[string]interface{}{
-			"path": downloadPath,
+			"path":   downloadPath,
+			"cached": cacheFilePath,
 		},
 	}
 	return msg, nil
@@ -140,8 +140,7 @@ func (m *Minio) GetThumbnail(bucket, file string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	imgPath := msg.Data.([]interface{})[0].(map[string]interface{})["path"].(string)
-	resp, err := os.Open(imgPath)
+	resp, err := os.Open(msg.Value("cached").(string))
 	if err != nil {
 		return nil, err
 	}
@@ -191,5 +190,18 @@ func (m *Minio) CreateBucket(bucket string) (*evmsg.Message, error) {
 		msg.Debug.Error = err.Error()
 		return msg, err
 	}
+	return msg, nil
+}
+
+func (m *Minio) BucketExists(bucket string) (*evmsg.Message, error) {
+	msg := evmsg.NewMessage()
+	msg.State = "Response"
+	exists, err := m.Client.BucketExists(bucket)
+	if err != nil {
+		msg.Debug.Error = err.Error()
+		return msg, err
+	}
+	msg.Data = []interface{}{}
+	msg.Data = append(msg.Data.([]interface{}), map[string]interface{}{"exists": exists})
 	return msg, nil
 }
