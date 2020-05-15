@@ -18,6 +18,11 @@ make build
 ./files.{OS}.amd64 start --help
 ```
 
+### requirements
+- the service requires for no two buckets to be present
+- - test (contains the objects to be stored (jpg or png) )
+- - meta (containing the meta information of the objects/files (jpg or png) )
+
 ### start with expected settings
 - will start the service at 0.0.0.0:7878
 - expects the webroot path to be ./webroot
