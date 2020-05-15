@@ -1,17 +1,19 @@
 package files
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"strings"
 	"time"
-
 	//"crypto/subtle"
 	"io/ioutil"
+	//"net/textproto"
 	"path/filepath"
 
 	"evalgo.org/evmsg"
@@ -119,6 +121,33 @@ func (f *Files) Start(address, client, secret, webroot string) error {
 			return err
 		}
 		err = f.WSStorage.PutObject(c.Param("bucket"), file)
+		if err != nil {
+			return err
+		}
+		infoFile := strings.Replace(file.Filename, filepath.Ext(file.Filename), ".json", 1)
+		infoMap := map[string]string{"name": file.Filename, "description": c.Request().FormValue("description")}
+		iB, err := json.Marshal(infoMap)
+		if err != nil {
+			return err
+		}
+		buff := bytes.NewBuffer(nil)
+		mw := multipart.NewWriter(buff)
+		err = mw.SetBoundary("myBoundary")
+		if err != nil {
+			return err
+		}
+		mf, err := mw.CreateFormFile("file", infoFile)
+		if err != nil {
+			return err
+		}
+		mf.Write(iB)
+		mw.Close()
+		mr := multipart.NewReader(buff, "myBoundary")
+		form, err := mr.ReadForm(32 << 20)
+		if err != nil {
+			return err
+		}
+		err = f.WSStorage.PutObject("meta", form.File["file"][0])
 		if err != nil {
 			return err
 		}

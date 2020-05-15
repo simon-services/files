@@ -5,9 +5,11 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/base64"
+	"encoding/json"
 	"image"
 	"image/jpeg"
 	"image/png"
+	"io/ioutil"
 	"mime/multipart"
 	"net/url"
 	"os"
@@ -18,6 +20,8 @@ import (
 	"evalgo.org/evmsg"
 	"github.com/minio/minio-go/v6"
 	"github.com/nfnt/resize"
+
+	"log"
 )
 
 var MinioConnectionSecondsTimeout int64 = 5
@@ -88,21 +92,42 @@ func (m *Minio) ListObjects(bucket minio.BucketInfo, prefix string) (*evmsg.Mess
 	msg := evmsg.NewMessage()
 	msg.State = "Response"
 	doneCh := make(chan struct{})
+	mDoneCh := make(chan struct{})
 	defer close(doneCh)
+	defer close(mDoneCh)
 	objects := m.Client.ListObjects(bucket.Name, prefix, true, doneCh)
 	msgData := []interface{}{}
 	for obj := range objects {
+		// TODO that needs an optimization
+		metas := m.Client.ListObjects("meta", prefix, true, mDoneCh)
+		mObj := map[string]interface{}{}
 		if obj.Err != nil {
 			msg.Debug.Error = obj.Err.Error()
 			return msg, obj.Err
 		}
-		mObj := map[string]interface{}{
-			"key":      obj.Key,
-			"size":     obj.Size,
-			"etag":     obj.ETag,
-			"modified": obj.LastModified,
-			"bucket":   bucket.Name,
+		log.Println("===>", obj.Key, len(metas))
+		// TODO this one needs one too
+		for meta := range metas {
+			if meta.Err != nil {
+				msg.Debug.Error = meta.Err.Error()
+				return msg, meta.Err
+			}
+			log.Println(meta.Key, obj.Key, strings.Replace(obj.Key, filepath.Ext(obj.Key), ".json", 1))
+			if meta.Key == strings.Replace(obj.Key, filepath.Ext(obj.Key), ".json", 1) {
+				msg, err := m.GetObject("meta", meta.Key)
+				if err != nil {
+					msg.Debug.Error = err.Error()
+					return msg, err
+				}
+				mObj["description"] = msg.Value("description")
+			}
 		}
+		mObj["key"] = obj.Key
+		mObj["size"] = obj.Size
+		mObj["etag"] = obj.ETag
+		mObj["modified"] = obj.LastModified
+		mObj["bucket"] = bucket.Name
+		log.Println(mObj)
 		msgData = append(msgData, mObj)
 	}
 	msg.Data = msgData
@@ -116,22 +141,41 @@ func (m *Minio) GetObject(bucket, file string) (*evmsg.Message, error) {
 	hasher.Write([]byte(file))
 	fileNameSha := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 	cacheFilePath := MinioFilesCacheDir + string(os.PathSeparator) + fileNameSha
+	metaFile := strings.Replace(file, filepath.Ext(file), ".json", 1)
+	metaFilePath := MinioFilesCacheDir + string(os.PathSeparator) + metaFile
 	_, err := os.Stat(cacheFilePath)
 	if os.IsNotExist(err) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(MinioDownloadSecondsTimeout)*time.Second)
 		defer cancel()
-		err := m.Client.FGetObjectWithContext(ctx, bucket, file, cacheFilePath, minio.GetObjectOptions{})
+		err := m.Client.FGetObjectWithContext(ctx, "meta", metaFile, metaFilePath, minio.GetObjectOptions{})
+		if err != nil {
+			msg.Debug.Error = err.Error()
+			return msg, err
+		}
+		err = m.Client.FGetObjectWithContext(ctx, bucket, file, cacheFilePath, minio.GetObjectOptions{})
 		if err != nil {
 			msg.Debug.Error = err.Error()
 			return msg, err
 		}
 	}
+	metaB, err := ioutil.ReadFile(metaFilePath)
+	if err != nil {
+		msg.Debug.Error = err.Error()
+		return msg, err
+	}
+	meta := map[string]string{}
+	err = json.Unmarshal(metaB, &meta)
+	if err != nil {
+		msg.Debug.Error = err.Error()
+		return msg, err
+	}
 	downloadPath := strings.Replace(MinioDownloadsFilePath, ":bucket", bucket, 1)
 	downloadPath = strings.Replace(downloadPath, ":object", fileNameSha, 1)
 	msg.Data = []interface{}{
 		map[string]interface{}{
-			"path":   downloadPath,
-			"cached": cacheFilePath,
+			"path":        downloadPath,
+			"cached":      cacheFilePath,
+			"description": meta["description"],
 		},
 	}
 	return msg, nil
