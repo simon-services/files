@@ -13,4 +13,5 @@ type Storage interface {
 	GetObject(bucket, file string) (*evmsg.Message, error)
 	GetThumbnail(bucket, file string) ([]byte, error)
 	PutObject(bucket string, file *multipart.FileHeader) error
+	RemoveObject(bucket string, file string) (*evmsg.Message, error)
 }

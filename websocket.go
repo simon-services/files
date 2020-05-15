@@ -200,6 +200,18 @@ func (f *Files) Start(address, client, secret, webroot string) error {
 					case "Object":
 						msg.State = "Response"
 						switch msg.Command {
+						case "delete":
+							err = evmsg.CheckRequiredKeys(&msg, []string{"bucket", "file"})
+							if err != nil {
+								c.Logger().Error(err)
+								msg.Debug.Error = err.Error()
+							} else {
+								nMsg, err := f.WSStorage.RemoveObject(msg.Value("bucket").(string), msg.Value("file").(string))
+								if err != nil {
+									c.Logger().Error(err)
+								}
+								msg = *nMsg
+							}
 						case "get":
 							err = evmsg.CheckRequiredKeys(&msg, []string{"bucket", "file"})
 							if err != nil {

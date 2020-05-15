@@ -252,3 +252,29 @@ func (m *Minio) BucketExists(bucket string) (*evmsg.Message, error) {
 	msg.Data = append(msg.Data.([]interface{}), map[string]interface{}{"exists": exists})
 	return msg, nil
 }
+
+func (m *Minio) RemoveObject(bucket, file string) (*evmsg.Message, error) {
+	msg := evmsg.NewMessage()
+	msg.State = "Response"
+	err := m.Client.RemoveObject(bucket, file)
+	if err != nil {
+		msg.Debug.Error = err.Error()
+		return msg, err
+	}
+	err = m.Client.RemoveObject("meta", strings.Replace(file, filepath.Ext(file), ".json", 1))
+	if err != nil {
+		msg.Debug.Error = err.Error()
+		return msg, err
+	}
+	msg.Data = []interface{}{map[string]interface{}{"bucket": bucket, "file": file, "deleted": "OK"}}
+	hasher := sha1.New()
+	hasher.Write([]byte(file))
+	fileNameSha := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+	cacheFilePath := MinioFilesCacheDir + string(os.PathSeparator) + fileNameSha
+	metaFile := strings.Replace(file, filepath.Ext(file), ".json", 1)
+	metaFilePath := MinioFilesCacheDir + string(os.PathSeparator) + metaFile
+	os.Remove(cacheFilePath)
+	os.Remove(metaFilePath)
+	return msg, nil
+
+}
